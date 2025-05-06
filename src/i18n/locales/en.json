@@ -1,0 +1,37 @@
+{
+  "common": {
+    "dashboard": "Dashboard",
+    "inventory": "Inventory",
+    "financial": "Financial",
+    "shifts": "Shifts",
+    "suppliers": "Suppliers",
+    "transfers": "Transfers",
+    "reports": "Reports",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "inventory": {
+    "title": "Inventory Management",
+    "subtitle": "Track and manage your inventory across all locations",
+    "totalItems": "Total Items",
+    "lowStock": "Low Stock",
+    "totalValue": "Total Value",
+    "movements": "Movements",
+    "acrossLocations": "Across all locations",
+    "belowReorderPoint": "Items below reorder point",
+    "currentValue": "Current inventory value",
+    "last7Days": "In last 7 days"
+  },
+  "actions": {
+    "add": "Add",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "import": "Import",
+    "export": "Export",
+    "search": "Search",
+    "filter": "Filter",
+    "refresh": "Refresh"
+  }
+}

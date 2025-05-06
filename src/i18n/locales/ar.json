@@ -1,0 +1,37 @@
+{
+  "common": {
+    "dashboard": "لوحة التحكم",
+    "inventory": "المخزون",
+    "financial": "المالية",
+    "shifts": "المناوبات",
+    "suppliers": "الموردين",
+    "transfers": "التحويلات",
+    "reports": "التقارير",
+    "settings": "الإعدادات",
+    "logout": "تسجيل الخروج"
+  },
+  "inventory": {
+    "title": "إدارة المخزون",
+    "subtitle": "تتبع وإدارة المخزون في جميع المواقع",
+    "totalItems": "إجمالي العناصر",
+    "lowStock": "مخزون منخفض",
+    "totalValue": "القيمة الإجمالية",
+    "movements": "الحركات",
+    "acrossLocations": "في جميع المواقع",
+    "belowReorderPoint": "العناصر تحت نقطة إعادة الطلب",
+    "currentValue": "قيمة المخزون الحالية",
+    "last7Days": "في آخر 7 أيام"
+  },
+  "actions": {
+    "add": "إضافة",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "import": "استيراد",
+    "export": "تصدير",
+    "search": "بحث",
+    "filter": "تصفية",
+    "refresh": "تحديث"
+  }
+}
