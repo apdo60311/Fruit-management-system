@@ -14,6 +14,7 @@ import SupplierManagement from './pages/suppliers/SupplierManagement';
 import TransferManagement from './pages/transfers/TransferManagement';
 import Reports from './pages/reports/Reports';
 import Settings from './pages/settings/Settings';
+import StaffManagement from './pages/staff/StaffManagement';
 import useAuthStore from './stores/authStore';
 
 function App() {
@@ -30,7 +31,7 @@ function App() {
         
         if (isElectron) {
           // Get app version
-          const version = await window.electronAPI.getAppVersion();
+          const version = await window.electronAPI!.getAppVersion();
           console.log(`App version: ${version}`);
           
           // Check authentication
@@ -86,6 +87,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/financial" element={<FinancialManagement />} />
+          <Route path="/staff" element={<StaffManagement />} />
           <Route path="/shifts" element={<ShiftManagement />} />
           <Route path="/suppliers" element={<SupplierManagement />} />
           <Route path="/transfers" element={<TransferManagement />} />

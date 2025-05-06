@@ -64,6 +64,7 @@ const menuItems = [
   { text: 'Dashboard', icon: <HomeIcon size={20} />, path: '/' },
   { text: 'Inventory', icon: <PackageIcon size={20} />, path: '/inventory' },
   { text: 'Financial', icon: <DollarSignIcon size={20} />, path: '/financial' },
+  { text: 'Staff', icon: <UserCheckIcon size={20} />, path: '/staff' },
   { text: 'Shifts', icon: <ClockIcon size={20} />, path: '/shifts' },
   { text: 'Suppliers', icon: <TruckIcon size={20} />, path: '/suppliers' },
   { text: 'Transfers', icon: <RefreshCwIcon size={20} />, path: '/transfers' },
