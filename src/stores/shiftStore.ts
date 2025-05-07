@@ -1,89 +1,21 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { Employee, EmployeeTimeLog } from '../interfaces/staff-interfaces';
+import { Shift, ShiftExpense } from '../interfaces/shift-interface';
 
-interface EmployeeTimeLog {
-    id: string;
-    employeeId: string;
-    shiftId: string;
-    clockIn: string;
-    clockOut?: string;
-    breaks: Array<{
-        start: string;
-        end?: string;
-    }>;
-    totalWorkMinutes: number;
-    totalBreakMinutes: number;
-}
-
-interface Employee {
-    id: string;
-    name: string;
-    role: string;
-    status: 'active' | 'on-break' | 'off-duty';
-    branch: string;
-    startTime?: string;
-    totalActiveTime?: number; // in minutes
-    currentBreakStart?: string;
-    timeLogs: EmployeeTimeLog[];
-    // Wage information
-    wage: number;
-    wageType: 'hourly' | 'daily' | 'monthly';
-    defaultShifts?: string[]; // Array of branch IDs where this employee is default staff
-    shiftPreferences: {
-        type: 'morning' | 'night';
-        branchId: string;
-    }[];
-}
-
-interface ShiftExpense {
-    id: string;
-    description: string;
-    amount: number;
-    category: string;
-    date: string;
-    branchId: string;
-    shiftId: string;
-}
-
-interface Shift {
-    id: string;
-    name: string;
-    type: 'morning' | 'night';
-    startTime: string;
-    endTime: string;
-    branch: string;
-    employees: string[];
-    status: 'active' | 'upcoming' | 'completed';
-    tasks: {
-        id: string;
-        description: string;
-        assignedTo: string;
-        status: 'pending' | 'completed';
-    }[];
-    expenses: ShiftExpense[];
-    scheduledStart: string; // "10:00"
-    scheduledEnd: string;   // "22:00"
-    actualStart: string;    // ISO string
-    actualEnd?: string;     // ISO string
-    timeLogs: EmployeeTimeLog[];
-}
-
-interface ShiftState {
+export interface ShiftState {
     employees: Employee[];
     shifts: Shift[];
     branches: { id: string; name: string }[];
     currentShift: string | null;
 
-    // Branch management
     addBranch: (branch: { name: string }) => void;
     removeBranch: (id: string) => void;
 
-    // Employee management
     addEmployee: (employee: Omit<Employee, 'id' | 'status' | 'startTime' | 'totalActiveTime' | 'currentBreakStart' | 'timeLogs'>) => void;
     updateEmployee: (id: string, employee: Partial<Employee>) => void;
     removeEmployee: (id: string) => void;
 
-    // Shift management
     addShift: (shift: Omit<Shift, 'id' | 'tasks' | 'expenses' | 'scheduledStart' | 'scheduledEnd' | 'actualStart' | 'actualEnd' | 'timeLogs'>) => void;
     updateShift: (id: string, shift: Partial<Shift>) => void;
     removeShift: (id: string) => void;
@@ -91,17 +23,14 @@ interface ShiftState {
     startShift: (branchId: string) => void;
     endShift: (shiftId: string) => void;
 
-    // Attendance
     clockIn: (employeeId: string, branchId: string) => void;
     clockOut: (employeeId: string) => void;
     setBreak: (employeeId: string, onBreak: boolean) => void;
 
-    // Task management
     addTask: (shiftId: string, task: Omit<Shift['tasks'][0], 'id'>) => void;
     updateTask: (shiftId: string, taskId: string, update: Partial<Shift['tasks'][0]>) => void;
     removeTask: (shiftId: string, taskId: string) => void;
 
-    // Expense management
     addExpense: (expense: Omit<ShiftExpense, 'id'>) => void;
     updateExpense: (id: string, expense: Partial<ShiftExpense>) => void;
     removeExpense: (shiftId: string, expenseId: string) => void;
@@ -116,11 +45,9 @@ interface ShiftState {
         overtime: number;
     };
 
-    // Staff management
     addStaffToShift: (shiftId: string, employeeId: string) => void;
     removeStaffFromShift: (shiftId: string, employeeId: string) => void;
 
-    // End shift with sales data
     endShiftWithSales: (shiftId: string, salesData: {
         productId: string;
         quantity: number;
@@ -230,7 +157,7 @@ const useShiftStore = create<ShiftState>()(
                 const newShift: Shift = {
                     id: crypto.randomUUID(),
                     name: `${new Date().toLocaleDateString()}`,
-                    type: 'morning', // We'll update this based on selection, not time
+                    type: 'morning',
                     startTime: new Date().toISOString(),
                     endTime: '',
                     branch: branchId,
@@ -250,7 +177,6 @@ const useShiftStore = create<ShiftState>()(
                     currentShift: newShift.id,
                 }));
 
-                // Add staff with matching shift preferences for this branch and type
                 const availableStaff = get().employees.filter(e =>
                     e.branch === branchId &&
                     e.shiftPreferences.some(p => p.branchId === branchId && p.type === newShift.type)
@@ -275,7 +201,6 @@ const useShiftStore = create<ShiftState>()(
                     currentShift: state.currentShift === shiftId ? null : state.currentShift,
                 }));
 
-                // Clock out all active employees
                 const activeEmployees = get().employees.filter((e) => e.status === 'active');
                 activeEmployees.forEach((employee) => {
                     get().clockOut(employee.id);
@@ -391,7 +316,6 @@ const useShiftStore = create<ShiftState>()(
                 if (!timeLog) return;
 
                 if (onBreak) {
-                    // Starting break
                     const updatedTimeLog = {
                         ...timeLog,
                         breaks: [
@@ -425,7 +349,6 @@ const useShiftStore = create<ShiftState>()(
                         ),
                     }));
                 } else {
-                    // Ending break
                     const currentBreak = timeLog.breaks[timeLog.breaks.length - 1];
                     if (!currentBreak) return;
 
@@ -585,7 +508,7 @@ const useShiftStore = create<ShiftState>()(
 
                 const isLate = shiftStart.getTime() > scheduledStart.getTime();
                 const lateMinutes = isLate ? Math.floor((shiftStart.getTime() - scheduledStart.getTime()) / 60000) : 0;
-                const expectedMinutes = 12 * 60; // 12 hours (10 AM to 10 PM)
+                const expectedMinutes = 12 * 60;
                 const overtime = Math.max(0, timeLog.totalWorkMinutes - expectedMinutes);
 
                 return {
@@ -601,7 +524,6 @@ const useShiftStore = create<ShiftState>()(
                 const shift = get().shifts.find(s => s.id === shiftId);
                 const employee = get().employees.find(e => e.id === employeeId);
 
-                // Only add staff if they have matching preferences for this branch and shift type
                 if (shift && employee && employee.shiftPreferences.some(p =>
                     p.branchId === shift.branch && p.type === shift.type
                 )) {
@@ -638,11 +560,9 @@ const useShiftStore = create<ShiftState>()(
                     };
                 }
 
-                // Calculate total sales and costs
                 const totalSales = salesData.reduce((sum, item) => sum + (item.price * item.quantity), 0);
                 const totalCost = salesData.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
 
-                // Calculate staff wages based on their wage type and rate
                 const staffWages = shift.timeLogs.reduce((total, log) => {
                     const employee = employees.find(e => e.id === log.employeeId);
                     if (!employee) return total;
@@ -655,16 +575,14 @@ const useShiftStore = create<ShiftState>()(
                         case 'daily':
                             return total + employee.wage;
                         case 'monthly':
-                            return total + (employee.wage / 30); // Assuming 30 days per month
+                            return total + (employee.wage / 30);
                         default:
                             return total;
                     }
                 }, 0);
 
-                // Calculate profit
                 const profit = totalSales - totalCost - staffWages;
 
-                // Update shift with end time and status
                 get().endShift(shiftId);
 
                 return {

@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import { X, Plus } from 'lucide-react';
 import useShiftStore from '../../stores/shiftStore';
+import { Employee } from '../../interfaces/staff-interfaces';
 
 interface StaffFormProps {
   open: boolean;
@@ -28,17 +29,7 @@ interface StaffFormProps {
   branchId: string;
 }
 
-interface Employee {
-  id: string;
-  name: string;
-  role: string;
-  branch: string;
-  status: 'active' | 'on-break' | 'off-duty';
-  wage: number;
-  wageType: 'hourly' | 'daily' | 'monthly';
-  defaultShifts?: string[];
-  timeLogs: any[];
-}
+
 
 function StaffForm({ open, onClose, branchId }: StaffFormProps) {
   const { addEmployee, currentShift, addStaffToShift } = useShiftStore();
@@ -65,10 +56,8 @@ function StaffForm({ open, onClose, branchId }: StaffFormProps) {
     };
 
     try {
-      // Cast the result to Employee type since we know the structure
       const newEmployee = addEmployee(employeeData) as unknown as Employee;
     
-      // Check if currentShift exists and we have the employee
       if (currentShift && newEmployee?.id) {
         addStaffToShift(currentShift, newEmployee.id);
       }
@@ -156,7 +145,7 @@ const DefaultStaffManagement: React.FC<DefaultStaffProps> = ({ branchId }) => {
 
     const updatedDefaultShifts = isDefault 
       ? [...(employee.defaultShifts || []), branchId]
-      : (employee.defaultShifts || []).filter(id => id !== branchId);
+      : (employee.defaultShifts || []).filter((id:any) => id !== branchId);
 
     updateEmployee(employeeId, {
       defaultShifts: updatedDefaultShifts

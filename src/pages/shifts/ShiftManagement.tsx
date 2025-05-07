@@ -43,26 +43,8 @@ import {
   Upload,
 } from 'lucide-react';
 import useShiftStore from '../../stores/shiftStore';
+import { ExpenseFormProps, SalesUploadFormProps, ShiftFormProps, TaskFormProps } from '../../interfaces/props-interfaces';
 
-interface TaskFormProps {
-  open: boolean;
-  onClose: () => void;
-  shiftId: string;
-  employees: Array<{ id: string; name: string }>;
-}
-
-interface ExpenseFormProps {
-  open: boolean;
-  onClose: () => void;
-  shiftId: string;
-  branchId: string;
-}
-
-interface SalesUploadFormProps {
-  open: boolean;
-  onClose: () => void;
-  shiftId: string;
-}
 
 function TaskForm({ open, onClose, shiftId, employees }: TaskFormProps) {
   const { addTask } = useShiftStore();
@@ -219,30 +201,24 @@ function SalesUploadForm({ open, onClose, shiftId }: SalesUploadFormProps) {
   const [processing, setProcessing] = useState(false);
 
   const validateCSV = (text: string): { isValid: boolean; error?: string } => {
-    // Split into lines and remove empty lines
     const lines = text.split('\n').filter(line => line.trim());
     
-    // Check if file is empty
     if (lines.length < 2) {
       return { isValid: false, error: 'File is empty or missing data rows' };
     }
 
-    // Check header
     const header = lines[0].toLowerCase().trim();
     if (header !== 'productid,quantity,price,cost') {
       return { isValid: false, error: 'Invalid CSV header. Expected: productId,quantity,price,cost' };
     }
 
-    // Validate each data row
     for (let i = 1; i < lines.length; i++) {
       const row = lines[i].split(',');
       
-      // Check column count
       if (row.length !== 4) {
         return { isValid: false, error: `Invalid number of columns in row ${i}` };
       }
 
-      // Check numeric values
       const [productId, quantity, price, cost] = row;
       if (!productId.trim()) {
         return { isValid: false, error: `Empty product ID in row ${i}` };
@@ -278,7 +254,6 @@ function SalesUploadForm({ open, onClose, shiftId }: SalesUploadFormProps) {
     try {
       const text = await file.text();
       
-      // Validate CSV format
       const validation = validateCSV(text);
       if (!validation.isValid) {
         setFileError(validation.error || 'Invalid file format');
@@ -399,14 +374,6 @@ function SalesUploadForm({ open, onClose, shiftId }: SalesUploadFormProps) {
     </Dialog>
   );
 }
-
-interface ShiftFormProps {
-  open: boolean;
-  onClose: () => void;
-  branch: string;
-  shiftType: 'morning' | 'night';
-}
-
 const ShiftForm: React.FC<ShiftFormProps> = ({ open, onClose, branch, shiftType }) => {
   const { addShift } = useShiftStore();
   const [formData] = useState({
@@ -439,7 +406,6 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ open, onClose, branch, shiftType 
           <Typography variant="subtitle1" gutterBottom>
             Assigned Staff Members:
           </Typography>
-          {/* Add shift scheduling fields here */}
         </Box>
       </DialogContent>
       <DialogActions>
@@ -480,7 +446,6 @@ function ShiftManagement() {
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
   const [isFormOpen, setIsFormOpen] = useState(false);
 
-  // Filter shifts for current day only
   const todayShifts = shifts.filter((shift) => {
     const shiftDate = new Date(shift.startTime).toISOString().split('T')[0];
     return (
@@ -492,10 +457,9 @@ function ShiftManagement() {
 
   const currentShiftData = currentShift ? shifts.find((s) => s.id === currentShift) : null;
   
-  // Filter employees based on branch and shift type preferences
   const availableEmployees = employees.filter((e) => 
     e.branch === selectedBranch && 
-    e.shiftPreferences.some(p => p.branchId === selectedBranch && p.type === selectedShiftType)
+    e.shiftPreferences.some((p:any) => p.branchId === selectedBranch && p.type === selectedShiftType)
   );
 
   const activeEmployees = availableEmployees.filter((e) => e.status === 'active');
@@ -526,7 +490,7 @@ function ShiftManagement() {
   const handleAddStaff = () => {
     if (currentShift && selectedEmployee) {
       const employee = employees.find(e => e.id === selectedEmployee);
-      if (employee?.shiftPreferences.some(p => p.branchId === selectedBranch && p.type === selectedShiftType)) {
+      if (employee?.shiftPreferences.some((p:any) => p.branchId === selectedBranch && p.type === selectedShiftType)) {
         addStaffToShift(currentShift, selectedEmployee);
         setSelectedEmployee('');
       }
@@ -558,7 +522,6 @@ function ShiftManagement() {
               value={selectedBranch}
               onChange={(e) => {
                 const newBranchId = e.target.value;
-                // Only clear current shift if it doesn't match the new branch
                 if (currentShiftData && currentShiftData.branch !== newBranchId) {
                   setCurrentShift(null);
                 }
@@ -579,7 +542,6 @@ function ShiftManagement() {
               value={selectedShiftType}
               onChange={(e) => {
                 const newType = e.target.value as 'morning' | 'night';
-                // Only clear current shift if it doesn't match the new type
                 if (currentShiftData && currentShiftData.type !== newType) {
                   setCurrentShift(null);
                 }
@@ -595,7 +557,6 @@ function ShiftManagement() {
       </Box>
 
       <Grid container spacing={3}>
-        {/* Current Shift Card */}
         <Grid item xs={12} md={6} lg={3}>
           <Card elevation={0}>
             <CardContent>
@@ -693,7 +654,6 @@ function ShiftManagement() {
           </Card>
         </Grid>
 
-        {/* Tabs Section */}
         <Grid item xs={12}>
           <TabContext value={tabValue}>
             <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
@@ -710,7 +670,6 @@ function ShiftManagement() {
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                   <Typography variant="h6">Staff Management</Typography>
                   
-                  {/* Add staff selector */}
                   <Box sx={{ display: 'flex', gap: 1 }}>
                     <FormControl sx={{ minWidth: 200 }}>
                       <InputLabel>Add Staff</InputLabel>
@@ -740,9 +699,9 @@ function ShiftManagement() {
 
                 <List>
                   {currentShiftData?.employees
-                    .map(employeeId => availableEmployees.find(e => e.id === employeeId))
-                    .filter((employee): employee is NonNullable<typeof employee> => employee !== undefined)
-                    .map((employee) => {
+                    .map((employeeId : any) => availableEmployees.find(e => e.id === employeeId))
+                    .filter((employee:any): employee is NonNullable<typeof employee> => employee !== undefined)
+                    .map((employee:any) => {
                     const stats = currentShift ? getEmployeeShiftStats(employee.id, currentShift) : null;
                     
                     return (
@@ -878,7 +837,7 @@ function ShiftManagement() {
                 </Box>
 
                 <List>
-                  {currentShiftData?.tasks.map((task) => (
+                  {currentShiftData?.tasks.map((task:any) => (
                     <ListItem
                       key={task.id}
                       sx={{
@@ -1014,7 +973,6 @@ function ShiftManagement() {
           <SalesUploadForm
             open={isSalesUploadOpen}
             onClose={() => {
-              // Only allow closing if user cancels, not after successful upload
               if (!currentShift) {
                 setIsSalesUploadOpen(false);
               }

@@ -18,43 +18,12 @@ import {
   MenuItem,
 } from '@mui/material';
 import useShiftStore from '../../stores/shiftStore';
+import { Employee, Staff, StaffFormProps } from '../../interfaces/staff-interfaces';
+import { ShiftPreference } from '../../interfaces/shift-interface';
 
-interface StaffFormProps {
-  open: boolean;
-  onClose: () => void;
-  editingStaff: Staff | null;
-}
-
-interface ShiftPreference {
-  type: 'morning' | 'night';
-  branchId: string;
-}
-
-interface Employee {
-  id: string;
-  name: string;
-  role: string;
-  branch: string;
-  status: 'active' | 'on-break' | 'off-duty';
-  wage: number;
-  wageType: 'hourly' | 'daily' | 'monthly';
-  startTime?: string;
-  totalActiveTime?: number;
-  currentBreakStart?: string;
-  defaultShifts?: string[];
-  timeLogs: any[];
-  shiftPreferences: ShiftPreference[];
-}
-
-interface Staff extends Omit<Employee, 'shiftPreferences'> {
-  email: string;
-  phone: string;
-  shiftPreferences: ShiftPreference[];
-}
 
 const StaffForm: React.FC<StaffFormProps> = ({ open, onClose, editingStaff = null }) => {
-  const { addEmployee, updateEmployee } = useShiftStore(); // Use shiftStore instead of staffStore
-  const { branches } = useShiftStore();
+  const { addEmployee, updateEmployee, branches } = useShiftStore();
   const [formData, setFormData] = useState({
     name: editingStaff?.name || '',
     role: editingStaff?.role || '',
@@ -189,13 +158,12 @@ const StaffForm: React.FC<StaffFormProps> = ({ open, onClose, editingStaff = nul
 };
 
 function StaffManagement() {
-  const { employees, updateEmployee } = useShiftStore(); // Use shiftStore instead of staffStore
+  const { employees, updateEmployee } = useShiftStore(); 
   const { branches } = useShiftStore();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
 
   const handleEdit = (member: Employee) => {
-    // Cast the Employee to Staff since we know staff members have email and phone
     setEditingStaff(member as unknown as Staff);
     setIsFormOpen(true);
   };
@@ -206,7 +174,6 @@ function StaffManagement() {
   };
 
   const handleRemoveStaff = (id: string) => {
-    // Update status to off-duty instead of inactive
     updateEmployee(id, { status: 'off-duty' });
   };
 
@@ -228,7 +195,6 @@ function StaffManagement() {
               <CardContent>
                 <Typography variant="h6">{member.name}</Typography>
                 <Typography color="textSecondary">{member.role}</Typography>
-                {/* Type guard to check if the member has email and phone */}
                 {isStaffMember(member) && (
                   <>
                     <Typography variant="body2">Email: {member.email}</Typography>
@@ -241,7 +207,7 @@ function StaffManagement() {
                 
                 <Box sx={{ mt: 2 }}>
                   <Typography variant="subtitle2">Assigned Shifts:</Typography>
-                  {member.shiftPreferences?.map((pref, index) => {
+                  {member.shiftPreferences?.map((pref: any, index:any) => {
                     const branch = branches.find(b => b.id === pref.branchId);
                     return (
                       <Chip
@@ -281,7 +247,6 @@ function StaffManagement() {
   );
 }
 
-// Add type guard function
 function isStaffMember(member: Employee): member is Staff {
   return 'email' in member && 'phone' in member;
 }
