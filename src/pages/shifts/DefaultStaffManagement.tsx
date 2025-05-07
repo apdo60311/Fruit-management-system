@@ -28,24 +28,54 @@ interface StaffFormProps {
   branchId: string;
 }
 
+interface Employee {
+  id: string;
+  name: string;
+  role: string;
+  branch: string;
+  status: 'active' | 'on-break' | 'off-duty';
+  wage: number;
+  wageType: 'hourly' | 'daily' | 'monthly';
+  defaultShifts?: string[];
+  timeLogs: any[];
+}
+
 function StaffForm({ open, onClose, branchId }: StaffFormProps) {
-  const { addEmployee } = useShiftStore();
+  const { addEmployee, currentShift, addStaffToShift } = useShiftStore();
   const [employee, setEmployee] = useState({
     name: '',
     role: '',
     wage: '',
-    wageType: 'hourly',
+    wageType: 'hourly' as 'hourly' | 'daily' | 'monthly',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    addEmployee({
-      ...employee,
+    
+    const employeeData = {
+      name: employee.name,
+      role: employee.role,
       wage: Number(employee.wage),
-      wageType: employee.wageType as 'hourly' | 'daily' | 'monthly',
+      wageType: employee.wageType,
       branch: branchId,
       defaultShifts: [branchId],
-    });
+      shiftPreferences: [],
+      timeLogs: [],
+      status: 'off-duty' as const
+    };
+
+    try {
+      // Cast the result to Employee type since we know the structure
+      const newEmployee = addEmployee(employeeData) as unknown as Employee;
+    
+      // Check if currentShift exists and we have the employee
+      if (currentShift && newEmployee?.id) {
+        addStaffToShift(currentShift, newEmployee.id);
+      }
+    } catch (error) {
+      console.error('Failed to add employee:', error);
+    }
+
     onClose();
     setEmployee({ name: '', role: '', wage: '', wageType: 'hourly' });
   };
@@ -89,7 +119,7 @@ function StaffForm({ open, onClose, branchId }: StaffFormProps) {
                 <InputLabel>Wage Type</InputLabel>
                 <Select
                   value={employee.wageType}
-                  onChange={(e) => setEmployee({ ...employee, wageType: e.target.value })}
+                  onChange={(e) => setEmployee({ ...employee, wageType: e.target.value as 'hourly' | 'daily' | 'monthly' })}
                   label="Wage Type"
                 >
                   <MenuItem value="hourly">Hourly</MenuItem>
@@ -111,22 +141,26 @@ function StaffForm({ open, onClose, branchId }: StaffFormProps) {
   );
 }
 
-function DefaultStaffManagement() {
-  const { branches, employees, updateEmployee, removeEmployee } = useShiftStore();
-  const [selectedBranch, setSelectedBranch] = useState(branches[0]?.id || '');
+interface DefaultStaffProps {
+  branchId: string;
+}
+
+const DefaultStaffManagement: React.FC<DefaultStaffProps> = ({ branchId }) => {
+  const { branches, employees, updateEmployee } = useShiftStore();
   const [isStaffFormOpen, setIsStaffFormOpen] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState(branchId);
 
-  const defaultStaff = employees.filter((e) => 
-    e.defaultShifts?.includes(selectedBranch)
-  );
-
-  const handleRemoveDefaultStaff = (employeeId: string) => {
+  const handleDefaultStaffChange = (employeeId: string, isDefault: boolean) => {
     const employee = employees.find(e => e.id === employeeId);
-    if (employee && employee.defaultShifts) {
-      updateEmployee(employeeId, {
-        defaultShifts: employee.defaultShifts.filter(id => id !== selectedBranch)
-      });
-    }
+    if (!employee) return;
+
+    const updatedDefaultShifts = isDefault 
+      ? [...(employee.defaultShifts || []), branchId]
+      : (employee.defaultShifts || []).filter(id => id !== branchId);
+
+    updateEmployee(employeeId, {
+      defaultShifts: updatedDefaultShifts
+    });
   };
 
   return (
@@ -164,7 +198,7 @@ function DefaultStaffManagement() {
         </Box>
 
         <List>
-          {defaultStaff.map((employee) => (
+          {employees.filter(e => e.defaultShifts?.includes(branchId)).map((employee) => (
             <ListItem
               key={employee.id}
               sx={{
@@ -184,7 +218,7 @@ function DefaultStaffManagement() {
               />
               <IconButton
                 edge="end"
-                onClick={() => handleRemoveDefaultStaff(employee.id)}
+                onClick={() => handleDefaultStaffChange(employee.id, false)}
                 color="error"
               >
                 <X size={20} />
@@ -197,10 +231,10 @@ function DefaultStaffManagement() {
       <StaffForm
         open={isStaffFormOpen}
         onClose={() => setIsStaffFormOpen(false)}
-        branchId={selectedBranch}
+        branchId={branchId}
       />
     </Box>
   );
-}
+};
 
 export default DefaultStaffManagement;

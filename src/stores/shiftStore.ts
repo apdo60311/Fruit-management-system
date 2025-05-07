@@ -29,6 +29,10 @@ interface Employee {
     wage: number;
     wageType: 'hourly' | 'daily' | 'monthly';
     defaultShifts?: string[]; // Array of branch IDs where this employee is default staff
+    shiftPreferences: {
+        type: 'morning' | 'night';
+        branchId: string;
+    }[];
 }
 
 interface ShiftExpense {
@@ -44,6 +48,7 @@ interface ShiftExpense {
 interface Shift {
     id: string;
     name: string;
+    type: 'morning' | 'night';
     startTime: string;
     endTime: string;
     branch: string;
@@ -107,6 +112,7 @@ interface ShiftState {
         totalWork: number;
         totalBreak: number;
         isLate: boolean;
+        lateMinutes: number;
         overtime: number;
     };
 
@@ -221,29 +227,38 @@ const useShiftStore = create<ShiftState>()(
             },
 
             startShift: (branchId) => {
-                const now = new Date();
-                const scheduledStart = "10:00";
-                const scheduledEnd = "22:00";
-
-                const newShift = {
+                const newShift: Shift = {
                     id: crypto.randomUUID(),
-                    name: `${now.toLocaleDateString()} - ${scheduledStart}`,
-                    scheduledStart,
-                    scheduledEnd,
-                    startTime: now.toISOString(),
+                    name: `${new Date().toLocaleDateString()}`,
+                    type: 'morning', // We'll update this based on selection, not time
+                    startTime: new Date().toISOString(),
                     endTime: '',
-                    actualStart: now.toISOString(),
                     branch: branchId,
                     employees: [],
-                    status: 'active' as const,
+                    status: 'active',
                     tasks: [],
                     expenses: [],
+                    scheduledStart: "10:00",
+                    scheduledEnd: "22:00",
+                    actualStart: new Date().toISOString(),
+                    actualEnd: undefined,
                     timeLogs: [],
                 };
+
                 set((state) => ({
                     shifts: [...state.shifts, newShift],
                     currentShift: newShift.id,
                 }));
+
+                // Add staff with matching shift preferences for this branch and type
+                const availableStaff = get().employees.filter(e =>
+                    e.branch === branchId &&
+                    e.shiftPreferences.some(p => p.branchId === branchId && p.type === newShift.type)
+                );
+
+                availableStaff.forEach(employee => {
+                    get().addStaffToShift(newShift.id, employee.id);
+                });
             },
 
             endShift: (shiftId) => {
@@ -546,16 +561,19 @@ const useShiftStore = create<ShiftState>()(
                         totalWork: 0,
                         totalBreak: 0,
                         isLate: false,
+                        lateMinutes: 0,
                         overtime: 0,
                     };
                 }
 
                 const timeLog = shift.timeLogs?.find((log) => log.employeeId === employeeId);
+
                 if (!timeLog) {
                     return {
                         totalWork: 0,
                         totalBreak: 0,
                         isLate: false,
+                        lateMinutes: 0,
                         overtime: 0,
                     };
                 }
@@ -566,6 +584,7 @@ const useShiftStore = create<ShiftState>()(
                 scheduledStart.setHours(hours, minutes, 0, 0);
 
                 const isLate = shiftStart.getTime() > scheduledStart.getTime();
+                const lateMinutes = isLate ? Math.floor((shiftStart.getTime() - scheduledStart.getTime()) / 60000) : 0;
                 const expectedMinutes = 12 * 60; // 12 hours (10 AM to 10 PM)
                 const overtime = Math.max(0, timeLog.totalWorkMinutes - expectedMinutes);
 
@@ -573,18 +592,27 @@ const useShiftStore = create<ShiftState>()(
                     totalWork: timeLog.totalWorkMinutes,
                     totalBreak: timeLog.totalBreakMinutes,
                     isLate,
+                    lateMinutes,
                     overtime,
                 };
             },
 
             addStaffToShift: (shiftId, employeeId) => {
-                set((state) => ({
-                    shifts: state.shifts.map((s) =>
-                        s.id === shiftId
-                            ? { ...s, employees: [...s.employees, employeeId] }
-                            : s
-                    ),
-                }));
+                const shift = get().shifts.find(s => s.id === shiftId);
+                const employee = get().employees.find(e => e.id === employeeId);
+
+                // Only add staff if they have matching preferences for this branch and shift type
+                if (shift && employee && employee.shiftPreferences.some(p =>
+                    p.branchId === shift.branch && p.type === shift.type
+                )) {
+                    set((state) => ({
+                        shifts: state.shifts.map((s) =>
+                            s.id === shiftId
+                                ? { ...s, employees: [...s.employees, employeeId] }
+                                : s
+                        ),
+                    }));
+                }
             },
 
             removeStaffFromShift: (shiftId, employeeId) => {

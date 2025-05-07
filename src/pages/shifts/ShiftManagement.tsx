@@ -39,7 +39,6 @@ import {
   Store,
   Timer,
   Users,
-  Clock,
   AlarmClock,
   Upload,
 } from 'lucide-react';
@@ -210,6 +209,7 @@ function ExpenseForm({ open, onClose, shiftId, branchId }: ExpenseFormProps) {
 function SalesUploadForm({ open, onClose, shiftId }: SalesUploadFormProps) {
   const { endShiftWithSales } = useShiftStore();
   const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string>('');
   const [summary, setSummary] = useState<{
     totalSales: number;
     totalCost: number;
@@ -218,25 +218,79 @@ function SalesUploadForm({ open, onClose, shiftId }: SalesUploadFormProps) {
   } | null>(null);
   const [processing, setProcessing] = useState(false);
 
+  const validateCSV = (text: string): { isValid: boolean; error?: string } => {
+    // Split into lines and remove empty lines
+    const lines = text.split('\n').filter(line => line.trim());
+    
+    // Check if file is empty
+    if (lines.length < 2) {
+      return { isValid: false, error: 'File is empty or missing data rows' };
+    }
+
+    // Check header
+    const header = lines[0].toLowerCase().trim();
+    if (header !== 'productid,quantity,price,cost') {
+      return { isValid: false, error: 'Invalid CSV header. Expected: productId,quantity,price,cost' };
+    }
+
+    // Validate each data row
+    for (let i = 1; i < lines.length; i++) {
+      const row = lines[i].split(',');
+      
+      // Check column count
+      if (row.length !== 4) {
+        return { isValid: false, error: `Invalid number of columns in row ${i}` };
+      }
+
+      // Check numeric values
+      const [productId, quantity, price, cost] = row;
+      if (!productId.trim()) {
+        return { isValid: false, error: `Empty product ID in row ${i}` };
+      }
+      if (isNaN(Number(quantity)) || Number(quantity) <= 0) {
+        return { isValid: false, error: `Invalid quantity in row ${i}` };
+      }
+      if (isNaN(Number(price)) || Number(price) < 0) {
+        return { isValid: false, error: `Invalid price in row ${i}` };
+      }
+      if (isNaN(Number(cost)) || Number(cost) < 0) {
+        return { isValid: false, error: `Invalid cost in row ${i}` };
+      }
+    }
+
+    return { isValid: true };
+  };
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
-      setSummary(null); // Reset summary when new file is selected
+      setSummary(null);
+      setFileError('');
     }
   };
 
   const handleUpload = async () => {
     if (!file) return;
     setProcessing(true);
+    setFileError('');
 
     try {
       const text = await file.text();
+      
+      // Validate CSV format
+      const validation = validateCSV(text);
+      if (!validation.isValid) {
+        setFileError(validation.error || 'Invalid file format');
+        setProcessing(false);
+        return;
+      }
+
       const rows = text.split('\n').filter(row => row.trim());
       const salesData = rows.slice(1).map(row => {
         const [productId, quantity, price, cost] = row.split(',');
         return {
-          productId,
+          productId: productId.trim(),
           quantity: Number(quantity),
           price: Number(price),
           cost: Number(cost)
@@ -245,10 +299,9 @@ function SalesUploadForm({ open, onClose, shiftId }: SalesUploadFormProps) {
 
       const result = endShiftWithSales(shiftId, salesData);
       setSummary(result);
-      // Don't close automatically - let user review the summary
     } catch (error) {
       console.error('Error processing file:', error);
-      alert('Error processing file. Please check the format.');
+      setFileError('Error processing file. Please check the format.');
     } finally {
       setProcessing(false);
     }
@@ -277,10 +330,16 @@ function SalesUploadForm({ open, onClose, shiftId }: SalesUploadFormProps) {
 
             <input
               type="file"
-              accept=".csv"
+              accept=".csv,.xls,.xlsx"
               onChange={handleFileChange}
               style={{ marginBottom: 16 }}
             />
+
+            {fileError && (
+              <Typography color="error" variant="body2" sx={{ mt: 1 }}>
+                {fileError}
+              </Typography>
+            )}
           </>
         ) : (
           <Paper sx={{ p: 2, mt: 2 }}>
@@ -341,6 +400,58 @@ function SalesUploadForm({ open, onClose, shiftId }: SalesUploadFormProps) {
   );
 }
 
+interface ShiftFormProps {
+  open: boolean;
+  onClose: () => void;
+  branch: string;
+  shiftType: 'morning' | 'night';
+}
+
+const ShiftForm: React.FC<ShiftFormProps> = ({ open, onClose, branch, shiftType }) => {
+  const { addShift } = useShiftStore();
+  const [formData] = useState({
+    name: `${new Date().toLocaleDateString()} - ${shiftType}`,
+    type: shiftType,
+    branch: branch,
+    employees: [] as string[],
+    status: 'upcoming' as const,
+    startTime: new Date().toISOString(),
+    endTime: '',
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    addShift(formData);
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose}>
+      <DialogTitle>Create New Shift</DialogTitle>
+      <DialogContent>
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="subtitle1" gutterBottom>
+            Branch: {branch}
+          </Typography>
+          <Typography variant="subtitle1" gutterBottom>
+            Shift Type: {shiftType}
+          </Typography>
+          <Typography variant="subtitle1" gutterBottom>
+            Assigned Staff Members:
+          </Typography>
+          {/* Add shift scheduling fields here */}
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={handleSubmit} variant="contained">
+          Create Shift
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
 function ShiftManagement() {
   const {
     employees,
@@ -352,45 +463,52 @@ function ShiftManagement() {
     setBreak,
     updateTask,
     startShift,
-    endShift,
     getShiftExpenses,
     getEmployeeShiftStats,
     addStaffToShift,
     removeStaffFromShift,
-    endShiftWithSales
+    setCurrentShift,
   } = useShiftStore();
+
   const [selectedBranch, setSelectedBranch] = useState(branches[0]?.id || '');
+  const [selectedShiftType, setSelectedShiftType] = useState<'morning' | 'night'>('morning');
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
   const [isExpenseFormOpen, setIsExpenseFormOpen] = useState(false);
   const [isSalesUploadOpen, setIsSalesUploadOpen] = useState(false);
   const [tabValue, setTabValue] = useState('1');
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
-  const currentShiftData = shifts.find((s) => s.id === currentShift);
-  const branchEmployees = employees.filter((e) => e.branch === selectedBranch || !e.branch);
-  const activeEmployees = branchEmployees.filter((e) => e.status === 'active');
+  // Filter shifts for current day only
+  const todayShifts = shifts.filter((shift) => {
+    const shiftDate = new Date(shift.startTime).toISOString().split('T')[0];
+    return (
+      shift.branch === selectedBranch &&
+      shift.type === selectedShiftType &&
+      shiftDate === selectedDate
+    );
+  });
+
+  const currentShiftData = currentShift ? shifts.find((s) => s.id === currentShift) : null;
+  
+  // Filter employees based on branch and shift type preferences
+  const availableEmployees = employees.filter((e) => 
+    e.branch === selectedBranch && 
+    e.shiftPreferences.some(p => p.branchId === selectedBranch && p.type === selectedShiftType)
+  );
+
+  const activeEmployees = availableEmployees.filter((e) => e.status === 'active');
   const shiftExpenses = currentShiftData ? getShiftExpenses(currentShiftData.id) : [];
   const totalExpenses = shiftExpenses.reduce((sum, exp) => sum + exp.amount, 0);
 
   const handleStartShift = () => {
     if (!selectedBranch) return;
-    
-    // Start the shift
     startShift(selectedBranch);
-    
-    // Add default staff to the shift
-    const defaultStaff = employees.filter(e => e.defaultShifts?.includes(selectedBranch));
-    defaultStaff.forEach(employee => {
-      if (currentShift) {
-        addStaffToShift(currentShift, employee.id);
-      }
-    });
   };
 
   const handleEndShift = () => {
     if (currentShift) {
-      // Show sales upload form when ending shift
-      // The shift will be ended after CSV processing
       setIsSalesUploadOpen(true);
     }
   };
@@ -407,8 +525,11 @@ function ShiftManagement() {
 
   const handleAddStaff = () => {
     if (currentShift && selectedEmployee) {
-      addStaffToShift(currentShift, selectedEmployee);
-      setSelectedEmployee('');
+      const employee = employees.find(e => e.id === selectedEmployee);
+      if (employee?.shiftPreferences.some(p => p.branchId === selectedBranch && p.type === selectedShiftType)) {
+        addStaffToShift(currentShift, selectedEmployee);
+        setSelectedEmployee('');
+      }
     }
   };
 
@@ -424,24 +545,57 @@ function ShiftManagement() {
         <Typography variant="h4" fontWeight="bold">
           Shift Management
         </Typography>
-        <FormControl sx={{ minWidth: 200 }}>
-          <InputLabel>Branch</InputLabel>
-          <Select
-            value={selectedBranch}
-            onChange={(e) => setSelectedBranch(e.target.value)}
-            label="Branch"
-          >
-            {branches.map((branch) => (
-              <MenuItem key={branch.id} value={branch.id}>
-                {branch.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <TextField
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            sx={{ minWidth: 200 }}
+          />
+          <FormControl sx={{ minWidth: 200 }}>
+            <InputLabel>Branch</InputLabel>
+            <Select
+              value={selectedBranch}
+              onChange={(e) => {
+                const newBranchId = e.target.value;
+                // Only clear current shift if it doesn't match the new branch
+                if (currentShiftData && currentShiftData.branch !== newBranchId) {
+                  setCurrentShift(null);
+                }
+                setSelectedBranch(newBranchId);
+              }}
+              label="Branch"
+            >
+              {branches.map((branch) => (
+                <MenuItem key={branch.id} value={branch.id}>
+                  {branch.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl sx={{ minWidth: 150 }}>
+            <InputLabel>Shift Type</InputLabel>
+            <Select
+              value={selectedShiftType}
+              onChange={(e) => {
+                const newType = e.target.value as 'morning' | 'night';
+                // Only clear current shift if it doesn't match the new type
+                if (currentShiftData && currentShiftData.type !== newType) {
+                  setCurrentShift(null);
+                }
+                setSelectedShiftType(newType);
+              }}
+              label="Shift Type"
+            >
+              <MenuItem value="morning">Morning (10:00-20:00)</MenuItem>
+              <MenuItem value="night">Night (20:00-10:00)</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
       </Box>
 
       <Grid container spacing={3}>
-        {/* Overview Cards */}
+        {/* Current Shift Card */}
         <Grid item xs={12} md={6} lg={3}>
           <Card elevation={0}>
             <CardContent>
@@ -495,7 +649,7 @@ function ShiftManagement() {
                 {activeEmployees.length}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Out of {branchEmployees.length} scheduled
+                Out of {availableEmployees.length} available
               </Typography>
             </CardContent>
           </Card>
@@ -547,6 +701,7 @@ function ShiftManagement() {
                 <Tab label="Staff Management" value="1" />
                 <Tab label="Tasks" value="2" />
                 <Tab label="Expenses" value="3" />
+                <Tab label="History" value="4" />
               </Tabs>
             </Box>
 
@@ -584,26 +739,29 @@ function ShiftManagement() {
                 </Box>
 
                 <List>
-                  {branchEmployees.map((employee) => {
+                  {currentShiftData?.employees
+                    .map(employeeId => availableEmployees.find(e => e.id === employeeId))
+                    .filter((employee): employee is NonNullable<typeof employee> => employee !== undefined)
+                    .map((employee) => {
                     const stats = currentShift ? getEmployeeShiftStats(employee.id, currentShift) : null;
                     
                     return (
                       <ListItem
                         key={employee.id}
                         sx={{
-                          bgcolor: 'background.paper',
+                          bgcolor: stats?.isLate ? 'error.soft' : 'background.paper',
                           mb: 1,
                           borderRadius: 1,
                         }}
                       >
                         <Grid container alignItems="center" spacing={2}>
-                          <Grid item xs={12} sm={4}>
+                          <Grid item xs={12} sm={3}>
                             <ListItemText
                               primary={employee.name}
                               secondary={employee.role}
                             />
                           </Grid>
-                          <Grid item xs={12} sm={4}>
+                          <Grid item xs={12} sm={3}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <Chip
                                 label={employee.status}
@@ -616,34 +774,20 @@ function ShiftManagement() {
                                 }
                                 size="small"
                               />
-                              {stats && employee.status !== 'off-duty' && (
-                                <>
-                                  {stats.isLate && (
-                                    <Tooltip title="Late Arrival">
-                                      <Chip
-                                        icon={<AlarmClock size={14} />}
-                                        label="Late"
-                                        color="error"
-                                        size="small"
-                                      />
-                                    </Tooltip>
-                                  )}
-                                  {stats.overtime > 0 && (
-                                    <Tooltip title={`Overtime: ${formatTime(stats.overtime)}`}>
-                                      <Chip
-                                        icon={<Clock size={14} />}
-                                        label="OT"
-                                        color="info"
-                                        size="small"
-                                      />
-                                    </Tooltip>
-                                  )}
-                                </>
+                              {stats && stats.isLate && (
+                                <Tooltip title={`Late by ${formatTime(stats.lateMinutes)}`}>
+                                  <Chip
+                                    icon={<AlarmClock size={14} />}
+                                    label="Late"
+                                    color="error"
+                                    size="small"
+                                  />
+                                </Tooltip>
                               )}
                             </Box>
                           </Grid>
-                          <Grid item xs={12} sm={2}>
-                            {stats && employee.status !== 'off-duty' && (
+                          <Grid item xs={12} sm={3}>
+                            {stats && (
                               <Box>
                                 <Typography variant="caption" display="block" color="text.secondary">
                                   Work: {formatTime(stats.totalWork)}
@@ -651,12 +795,49 @@ function ShiftManagement() {
                                 <Typography variant="caption" display="block" color="text.secondary">
                                   Break: {formatTime(stats.totalBreak)}
                                 </Typography>
+                                {stats.overtime > 0 && (
+                                  <Typography variant="caption" display="block" color="info.main">
+                                    OT: {formatTime(stats.overtime)}
+                                  </Typography>
+                                )}
                               </Box>
                             )}
                           </Grid>
-                          <Grid item xs={12} sm={2}>
-                            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                              {currentShiftData?.employees.includes(employee.id) && (
+                          <Grid item xs={12} sm={3}>
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                              {employee.status === 'off-duty' ? (
+                                <Tooltip title="Clock In">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => clockIn(employee.id, selectedBranch)}
+                                    color="success"
+                                  >
+                                    <Play size={20} />
+                                  </IconButton>
+                                </Tooltip>
+                              ) : (
+                                <>
+                                  <Tooltip title={employee.status === 'active' ? 'Take Break' : 'End Break'}>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => setBreak(employee.id, employee.status === 'active')}
+                                      color="warning"
+                                    >
+                                      <Coffee size={20} />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Clock Out">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => clockOut(employee.id)}
+                                      color="error"
+                                    >
+                                      <Square size={20} />
+                                    </IconButton>
+                                  </Tooltip>
+                                </>
+                              )}
+                              <Tooltip title="Remove from Shift">
                                 <IconButton
                                   size="small"
                                   onClick={() => handleRemoveStaff(employee.id)}
@@ -664,40 +845,7 @@ function ShiftManagement() {
                                 >
                                   <X size={20} />
                                 </IconButton>
-                              )}
-                              {employee.status === 'off-duty' ? (
-                                <IconButton
-                                  size="small"
-                                  onClick={() => clockIn(employee.id, selectedBranch)}
-                                  color="success"
-                                  disabled={!currentShiftData?.employees.includes(employee.id)}
-                                >
-                                  <Play size={20} />
-                                </IconButton>
-                              ) : (
-                                <>
-                                  <IconButton
-                                    size="small"
-                                    onClick={() =>
-                                      setBreak(
-                                        employee.id,
-                                        employee.status === 'active'
-                                      )
-                                    }
-                                    color="warning"
-                                    sx={{ mr: 1 }}
-                                  >
-                                    <Coffee size={20} />
-                                  </IconButton>
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => clockOut(employee.id)}
-                                    color="error"
-                                  >
-                                    <Square size={20} />
-                                  </IconButton>
-                                </>
-                              )}
+                              </Tooltip>
                             </Box>
                           </Grid>
                         </Grid>
@@ -811,6 +959,40 @@ function ShiftManagement() {
                 </List>
               </Paper>
             </TabPanel>
+
+            <TabPanel value="4">
+              <Paper elevation={0} sx={{ p: 3, borderRadius: 2 }}>
+                <Typography variant="h6" gutterBottom>Today's Shifts</Typography>
+                <List>
+                  {todayShifts.map((shift) => (
+                    <ListItem
+                      key={shift.id}
+                      sx={{
+                        bgcolor: 'background.paper',
+                        mb: 1,
+                        borderRadius: 1,
+                      }}
+                    >
+                      <ListItemText
+                        primary={`${shift.type} Shift`}
+                        secondary={
+                          <>
+                            Start: {new Date(shift.startTime).toLocaleTimeString()}
+                            {shift.endTime && ` • End: ${new Date(shift.endTime).toLocaleTimeString()}`}
+                            {` • Status: ${shift.status}`}
+                          </>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                  {todayShifts.length === 0 && (
+                    <Typography color="text.secondary">
+                      No shifts found for today
+                    </Typography>
+                  )}
+                </List>
+              </Paper>
+            </TabPanel>
           </TabContext>
         </Grid>
       </Grid>
@@ -821,7 +1003,7 @@ function ShiftManagement() {
             open={isTaskFormOpen}
             onClose={() => setIsTaskFormOpen(false)}
             shiftId={currentShift as string}
-            employees={branchEmployees}
+            employees={availableEmployees}
           />
           <ExpenseForm
             open={isExpenseFormOpen}
@@ -840,6 +1022,15 @@ function ShiftManagement() {
             shiftId={currentShift || ''}
           />
         </>
+      )}
+
+      {selectedBranch && (
+        <ShiftForm
+          open={isFormOpen}
+          onClose={() => setIsFormOpen(false)}
+          branch={selectedBranch}
+          shiftType={selectedShiftType}
+        />
       )}
     </Box>
   );

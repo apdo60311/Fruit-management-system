@@ -1,354 +1,289 @@
 import { useState } from 'react';
 import {
   Box,
-  Typography,
-  Card,
-  CardContent,
   Button,
-  Grid,
-  TextField,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  IconButton,
-  Tooltip,
-  Tabs,
-  Tab,
+  TextField,
+  Typography,
+  Card,
+  CardContent,
+  Grid,
   Chip,
+  FormGroup,
+  FormControlLabel,
+  Checkbox,
+  MenuItem,
 } from '@mui/material';
-import { DataGrid, GridColDef } from '@mui/x-data-grid';
-import { 
-  UserPlus, 
-  Edit2, 
-  Trash2, 
-  RefreshCw,
-  Store,
-} from 'lucide-react';
-import useStaffStore from '../../stores/staffStore';
+import useShiftStore from '../../stores/shiftStore';
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
+interface StaffFormProps {
+  open: boolean;
+  onClose: () => void;
+  editingStaff: Staff | null;
 }
 
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`branch-tabpanel-${index}`}
-      aria-labelledby={`branch-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
-    </div>
-  );
+interface ShiftPreference {
+  type: 'morning' | 'night';
+  branchId: string;
 }
 
-interface StaffFormData {
+interface Employee {
+  id: string;
   name: string;
-  branch: string;
   role: string;
-  phone: string;
-  email: string;
-  status: 'active' | 'inactive';
+  branch: string;
+  status: 'active' | 'on-break' | 'off-duty';
+  wage: number;
+  wageType: 'hourly' | 'daily' | 'monthly';
+  startTime?: string;
+  totalActiveTime?: number;
+  currentBreakStart?: string;
+  defaultShifts?: string[];
+  timeLogs: any[];
+  shiftPreferences: ShiftPreference[];
 }
 
-const initialFormData: StaffFormData = {
-  name: '',
-  branch: '',
-  role: '',
-  phone: '',
-  email: '',
-  status: 'active',
-};
+interface Staff extends Omit<Employee, 'shiftPreferences'> {
+  email: string;
+  phone: string;
+  shiftPreferences: ShiftPreference[];
+}
 
-const branches = ['Main Branch', 'Secondary Branch'];
-const roles = ['Manager', 'Cashier', 'Stock Clerk', 'Sales Associate'];
+const StaffForm: React.FC<StaffFormProps> = ({ open, onClose, editingStaff = null }) => {
+  const { addEmployee, updateEmployee } = useShiftStore(); // Use shiftStore instead of staffStore
+  const { branches } = useShiftStore();
+  const [formData, setFormData] = useState({
+    name: editingStaff?.name || '',
+    role: editingStaff?.role || '',
+    email: editingStaff?.email || '',
+    phone: editingStaff?.phone || '',
+    branch: editingStaff?.branch || branches[0]?.id || '',
+    wage: editingStaff?.wage || 0,
+    wageType: editingStaff?.wageType || ('hourly' as const),
+    shiftPreferences: editingStaff?.shiftPreferences || [] as ShiftPreference[],
+  });
 
-function StaffManagement() {
-  const [tabValue, setTabValue] = useState(0);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [formData, setFormData] = useState<StaffFormData>(initialFormData);
-  const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
-  
-  const { staff, addStaff, updateStaff, deleteStaff, getStaffByBranch } = useStaffStore();
-
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
+  const handleShiftPreferenceChange = (branchId: string, shiftType: 'morning' | 'night', checked: boolean) => {
+    setFormData(prev => {
+      const newPreferences = [...prev.shiftPreferences];
+      if (checked) {
+        newPreferences.push({ branchId, type: shiftType });
+      } else {
+        const index = newPreferences.findIndex(p => p.branchId === branchId && p.type === shiftType);
+        if (index !== -1) {
+          newPreferences.splice(index, 1);
+        }
+      }
+      return { ...prev, shiftPreferences: newPreferences };
+    });
   };
 
-  const handleOpenForm = (staffId?: string) => {
-    if (staffId) {
-      const staffMember = staff.find((s) => s.id === staffId);
-      if (staffMember) {
-        setFormData({
-          name: staffMember.name,
-          branch: staffMember.branch,
-          role: staffMember.role,
-          phone: staffMember.phone,
-          email: staffMember.email,
-          status: staffMember.status,
-        });
-        setEditingStaffId(staffId);
-      }
+  const handleSubmit = () => {
+    if (editingStaff) {
+      updateEmployee(editingStaff.id, formData);
     } else {
-      setFormData(initialFormData);
-      setEditingStaffId(null);
+      addEmployee(formData);
     }
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>{editingStaff ? 'Edit Staff Member' : 'Add New Staff Member'}</DialogTitle>
+      <DialogContent>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+          <TextField
+            label="Name"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            fullWidth
+          />
+          <TextField
+            label="Role"
+            value={formData.role}
+            onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+            fullWidth
+          />
+          <TextField
+            label="Email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            fullWidth
+          />
+          <TextField
+            label="Phone"
+            value={formData.phone}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            fullWidth
+          />
+          <TextField
+            label="Branch"
+            value={formData.branch}
+            onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
+            fullWidth
+          />
+          <TextField
+            label="Wage"
+            type="number"
+            value={formData.wage}
+            onChange={(e) => setFormData({ ...formData, wage: parseFloat(e.target.value) })}
+            fullWidth
+          />
+          <TextField
+            label="Wage Type"
+            select
+            value={formData.wageType}
+            onChange={(e) => setFormData({ ...formData, wageType: e.target.value as 'hourly' | 'daily' | 'monthly' })}
+            fullWidth
+          >
+            <MenuItem value="hourly">Hourly</MenuItem>
+            <MenuItem value="daily">Daily</MenuItem>
+            <MenuItem value="monthly">Monthly</MenuItem>
+          </TextField>
+
+          <Typography variant="h6" sx={{ mt: 2 }}>Shift Assignments</Typography>
+          {branches.map((branch) => (
+            <Card key={branch.id} sx={{ mb: 2 }}>
+              <CardContent>
+                <Typography variant="subtitle1">{branch.name}</Typography>
+                <FormGroup>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.shiftPreferences.some(
+                          p => p.branchId === branch.id && p.type === 'morning'
+                        )}
+                        onChange={(e) => handleShiftPreferenceChange(branch.id, 'morning', e.target.checked)}
+                      />
+                    }
+                    label="Morning Shift"
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.shiftPreferences.some(
+                          p => p.branchId === branch.id && p.type === 'night'
+                        )}
+                        onChange={(e) => handleShiftPreferenceChange(branch.id, 'night', e.target.checked)}
+                      />
+                    }
+                    label="Night Shift"
+                  />
+                </FormGroup>
+              </CardContent>
+            </Card>
+          ))}
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={handleSubmit} variant="contained">
+          {editingStaff ? 'Update' : 'Add'} Staff Member
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+function StaffManagement() {
+  const { employees, updateEmployee } = useShiftStore(); // Use shiftStore instead of staffStore
+  const { branches } = useShiftStore();
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
+
+  const handleEdit = (member: Employee) => {
+    // Cast the Employee to Staff since we know staff members have email and phone
+    setEditingStaff(member as unknown as Staff);
     setIsFormOpen(true);
   };
 
-  const handleCloseForm = () => {
+  const handleClose = () => {
     setIsFormOpen(false);
-    setFormData(initialFormData);
-    setEditingStaffId(null);
+    setEditingStaff(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingStaffId) {
-      updateStaff(editingStaffId, { ...formData, joinDate: new Date().toISOString() });
-    } else {
-      addStaff({ ...formData, joinDate: new Date().toISOString() });
-    }
-    handleCloseForm();
+  const handleRemoveStaff = (id: string) => {
+    // Update status to off-duty instead of inactive
+    updateEmployee(id, { status: 'off-duty' });
   };
-
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this staff member?')) {
-      deleteStaff(id);
-    }
-  };
-
-  const columns: GridColDef[] = [
-    { field: 'name', headerName: 'Name', flex: 1 },
-    { field: 'role', headerName: 'Role', flex: 1 },
-    { field: 'phone', headerName: 'Phone', flex: 1 },
-    { field: 'email', headerName: 'Email', flex: 1 },
-    {
-      field: 'status',
-      headerName: 'Status',
-      flex: 1,
-      renderCell: (params) => (
-        <Chip 
-          label={params.value} 
-          color={params.value === 'active' ? 'success' : 'error'}
-          size="small"
-        />
-      ),
-    },
-    {
-      field: 'actions',
-      headerName: 'Actions',
-      flex: 1,
-      sortable: false,
-      renderCell: (params) => (
-        <Box>
-          <Tooltip title="Edit">
-            <IconButton onClick={() => handleOpenForm(params.row.id)} size="small">
-              <Edit2 size={18} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete">
-            <IconButton onClick={() => handleDelete(params.row.id)} size="small" color="error">
-              <Trash2 size={18} />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      ),
-    },
-  ];
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" fontWeight="bold" sx={{ mb: 4 }}>
-        Staff Management
-      </Typography>
-
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={tabValue} onChange={handleTabChange}>
-          <Tab 
-            icon={<Store size={18} />} 
-            iconPosition="start" 
-            label="All Branches" 
-            sx={{ textTransform: 'none' }} 
-          />
-          <Tab 
-            icon={<Store size={18} />} 
-            iconPosition="start" 
-            label="Main Branch" 
-            sx={{ textTransform: 'none' }} 
-          />
-          <Tab 
-            icon={<Store size={18} />} 
-            iconPosition="start" 
-            label="Secondary Branch" 
-            sx={{ textTransform: 'none' }} 
-          />
-        </Tabs>
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Typography variant="h4" fontWeight="bold">
+          Staff Management
+        </Typography>
+        <Button variant="contained" onClick={() => setIsFormOpen(true)}>
+          Add New Staff Member
+        </Button>
       </Box>
 
-      <Card elevation={0}>
-        <CardContent>
-          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-            <Button
-              variant="outlined"
-              startIcon={<RefreshCw size={18} />}
-            >
-              Refresh
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<UserPlus size={18} />}
-              onClick={() => handleOpenForm()}
-            >
-              Add Staff
-            </Button>
-          </Box>
+      <Grid container spacing={3}>
+        {employees.map((member) => (
+          <Grid item xs={12} md={6} lg={4} key={member.id}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6">{member.name}</Typography>
+                <Typography color="textSecondary">{member.role}</Typography>
+                {/* Type guard to check if the member has email and phone */}
+                {isStaffMember(member) && (
+                  <>
+                    <Typography variant="body2">Email: {member.email}</Typography>
+                    <Typography variant="body2">Phone: {member.phone}</Typography>
+                  </>
+                )}
+                <Typography variant="body2">Branch: {member.branch}</Typography>
+                <Typography variant="body2">Wage: {member.wage}</Typography>
+                <Typography variant="body2">Wage Type: {member.wageType}</Typography>
+                
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2">Assigned Shifts:</Typography>
+                  {member.shiftPreferences?.map((pref, index) => {
+                    const branch = branches.find(b => b.id === pref.branchId);
+                    return (
+                      <Chip
+                        key={index}
+                        label={`${branch?.name} - ${pref.type}`}
+                        size="small"
+                        sx={{ m: 0.5 }}
+                      />
+                    );
+                  })}
+                </Box>
 
-          <TabPanel value={tabValue} index={0}>
-            <DataGrid
-              rows={staff}
-              columns={columns}
-              autoHeight
-              disableRowSelectionOnClick
-              initialState={{
-                pagination: { paginationModel: { pageSize: 10 } },
-              }}
-              pageSizeOptions={[10, 25, 50]}
-            />
-          </TabPanel>
-
-          <TabPanel value={tabValue} index={1}>
-            <DataGrid
-              rows={getStaffByBranch('Main Branch')}
-              columns={columns}
-              autoHeight
-              disableRowSelectionOnClick
-              initialState={{
-                pagination: { paginationModel: { pageSize: 10 } },
-              }}
-              pageSizeOptions={[10, 25, 50]}
-            />
-          </TabPanel>
-
-          <TabPanel value={tabValue} index={2}>
-            <DataGrid
-              rows={getStaffByBranch('Secondary Branch')}
-              columns={columns}
-              autoHeight
-              disableRowSelectionOnClick
-              initialState={{
-                pagination: { paginationModel: { pageSize: 10 } },
-              }}
-              pageSizeOptions={[10, 25, 50]}
-            />
-          </TabPanel>
-        </CardContent>
-      </Card>
-
-      {/* Add/Edit Staff Dialog */}
-      <Dialog open={isFormOpen} onClose={handleCloseForm} maxWidth="sm" fullWidth>
-        <form onSubmit={handleSubmit}>
-          <DialogTitle>
-            {editingStaffId ? 'Edit Staff Member' : 'Add New Staff Member'}
-          </DialogTitle>
-          <DialogContent>
-            <Grid container spacing={2} sx={{ mt: 1 }}>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>Branch</InputLabel>
-                  <Select
-                    value={formData.branch}
-                    label="Branch"
-                    onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
+                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                  <Button size="small" onClick={() => handleEdit(member)}>
+                    Edit
+                  </Button>
+                  <Button 
+                    size="small" 
+                    color="error"
+                    onClick={() => handleRemoveStaff(member.id)}
                   >
-                    {branches.map((branch) => (
-                      <MenuItem key={branch} value={branch}>
-                        {branch}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>Role</InputLabel>
-                  <Select
-                    value={formData.role}
-                    label="Role"
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  >
-                    {roles.map((role) => (
-                      <MenuItem key={role} value={role}>
-                        {role}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Phone"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <FormControl fullWidth required>
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={formData.status}
-                    label="Status"
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
-                  >
-                    <MenuItem value="active">Active</MenuItem>
-                    <MenuItem value="inactive">Inactive</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-            </Grid>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleCloseForm}>Cancel</Button>
-            <Button type="submit" variant="contained">
-              {editingStaffId ? 'Save Changes' : 'Add Staff'}
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
+                    Delete
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      <StaffForm
+        open={isFormOpen}
+        onClose={handleClose}
+        editingStaff={editingStaff}
+      />
     </Box>
   );
+}
+
+// Add type guard function
+function isStaffMember(member: Employee): member is Staff {
+  return 'email' in member && 'phone' in member;
 }
 
 export default StaffManagement;
