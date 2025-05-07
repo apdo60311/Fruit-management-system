@@ -379,7 +379,7 @@ const Dashboard = () => {
                           color: 'rgba(0, 0, 0, 0.05)',
                         },
                         ticks: {
-                          callback: (value) => `$${value / 1000}k`,
+                          callback: (value) => `$${Number(value) / 1000}k`,
                         },
                       },
                       x: {
@@ -508,7 +508,7 @@ const Dashboard = () => {
                           color: 'rgba(0, 0, 0, 0.05)',
                         },
                         ticks: {
-                          callback: (value) => `$${value / 1000}k`,
+                          callback: (value) => `$${Number(value) / 1000}k`,
                         },
                       },
                       x: {
